@@ -22,13 +22,13 @@ trap 'exit' INT TERM
 usage() {
 	this="${1}"
 	cat <<EOF
-${this}: download chezmoi and optionally run chezmoi
+${this}: download cheznous, as both cheznous and chezmoi, and optionally run it
 
-Usage: ${this} [-b bindir] [-d] [-t tag] [chezmoi-args]
+Usage: ${this} [-b bindir] [-d] [-t tag] [cheznous-args]
 	-b	sets the installation directory, default is ${BINDIR}.
 	-d	enables debug logging.
 	-t	sets the tag, default is ${TAGARG}.
-If chezmoi-args are given, after install chezmoi is executed with chezmoi-args.
+If cheznous-args are given, after install cheznous is executed with cheznous-args.
 EOF
 	exit 2
 }
@@ -44,7 +44,7 @@ main() {
 	TAG="$(real_tag "${TAGARG}")"
 	VERSION="${TAG#v}"
 
-	log_info "found chezmoi version ${VERSION} for ${TAGARG}/${GOOS}/${GOARCH}"
+	log_info "found cheznous version ${VERSION} for ${TAGARG}/${GOOS}/${GOARCH}"
 
 	BINSUFFIX=
 	FORMAT=tar.gz
@@ -77,12 +77,12 @@ main() {
 	# download tarball
 	NAME="chezmoi_${VERSION}_${GOOS}${GOOS_EXTRA}_${arch}"
 	TARBALL="${NAME}.${FORMAT}"
-	TARBALL_URL="https://github.com/twpayne/chezmoi/releases/download/${TAG}/${TARBALL}"
+	TARBALL_URL="https://github.com/ariesclark/cheznous/releases/download/${TAG}/${TARBALL}"
 	http_download "${tmpdir}/${TARBALL}" "${TARBALL_URL}" || exit 1
 
 	# download checksums
 	CHECKSUMS="chezmoi_${VERSION}_checksums.txt"
-	CHECKSUMS_URL="https://github.com/twpayne/chezmoi/releases/download/${TAG}/${CHECKSUMS}"
+	CHECKSUMS_URL="https://github.com/ariesclark/cheznous/releases/download/${TAG}/${CHECKSUMS}"
 	http_download "${tmpdir}/${CHECKSUMS}" "${CHECKSUMS_URL}" || exit 1
 
 	# verify checksums
@@ -94,16 +94,17 @@ main() {
 	if [ ! -d "${BINDIR}" ]; then
 		install -d "${BINDIR}"
 	fi
-	BINARY="chezmoi${BINSUFFIX}"
-	install -- "${tmpdir}/${BINARY}" "${BINDIR}/"
-	log_info "installed ${BINDIR}/${BINARY}"
+	for BINARY in "cheznous${BINSUFFIX}" "chezmoi${BINSUFFIX}"; do
+		install -- "${tmpdir}/${BINARY}" "${BINDIR}/"
+		log_info "installed ${BINDIR}/${BINARY}"
+	done
 
-	if ! is_command chezmoi; then
-		log_info "add ${BINDIR} to your PATH to use chezmoi"
+	if ! is_command cheznous; then
+		log_info "add ${BINDIR} to your PATH to use cheznous"
 	fi
 
 	if [ -n "${1+n}" ]; then
-		exec "${BINDIR}/${BINARY}" "${@}"
+		exec "${BINDIR}/cheznous${BINSUFFIX}" "${@}"
 	fi
 }
 
@@ -112,7 +113,7 @@ parse_args() {
 		case "${arg}" in
 		b)
 			if [ "${OPTARG}" = ".local/bin" ] || [ "${OPTARG}" = "./.local/bin" ]; then
-				log_info "instead of using 'get.chezmoi.io -b .local/bin', use 'get.chezmoi.io/lb' instead"
+				log_info "instead of using 'install.sh -b .local/bin', use 'install-local-bin.sh' instead"
 			fi
 			BINDIR="${OPTARG}"
 			;;
@@ -235,7 +236,7 @@ get_libc() {
 real_tag() {
 	tag="${1}"
 	log_debug "checking GitHub for tag ${tag}"
-	release_url="https://github.com/twpayne/chezmoi/releases/${tag}"
+	release_url="https://github.com/ariesclark/cheznous/releases/${tag}"
 	json="$(http_get "${release_url}" "Accept: application/json")"
 	if [ -z "${json}" ]; then
 		log_err "real_tag error retrieving GitHub release ${tag}"

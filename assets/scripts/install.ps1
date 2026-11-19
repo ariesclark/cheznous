@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Install (and optionally run) chezmoi.
+Install (and optionally run) cheznous, as both cheznous and chezmoi.
 
 .PARAMETER BinDir
 Specifies the installation directory. "./bin" is the default. Alias: b
@@ -17,11 +17,11 @@ positionally without specifying its name.
 
 .EXAMPLE
 PS> install.ps1 -b '~/bin'
-PS> iex "&{$(irm 'https://get.chezmoi.io/ps1')} -b '~/bin'"
+PS> iex "&{$(irm 'https://raw.githubusercontent.com/ariesclark/cheznous/master/assets/scripts/install.ps1')} -b '~/bin'"
 
 .EXAMPLE
 PS> install.ps1 -- init --apply <DOTFILE_REPO_URL>
-PS> iex "&{$(irm 'https://get.chezmoi.io/ps1')} -- init --apply <DOTFILE_REPO_URL>"
+PS> iex "&{$(irm 'https://raw.githubusercontent.com/ariesclark/cheznous/master/assets/scripts/install.ps1')} -- init --apply <DOTFILE_REPO_URL>"
 #>
 [CmdletBinding()]
 param (
@@ -211,7 +211,7 @@ trap {
     break
 }
 
-$BaseUrl = 'https://github.com/twpayne/chezmoi/releases'
+$BaseUrl = 'https://github.com/ariesclark/cheznous/releases'
 
 # convert $BinDir to an absolute path
 $BinDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($BinDir)
@@ -260,14 +260,17 @@ Confirm-Checksum $tempArchivePath $checksums
 
 Expand-ChezmoiArchive $tempArchivePath
 
-$binaryFilename = "chezmoi${binarySuffix}"
-$tempBinaryPath = Join-Path -Path $tempDir -ChildPath $binaryFilename
-Write-DebugVariable 'binaryFilename', 'tempBinaryPath'
 [System.IO.Directory]::CreateDirectory($BinDir) | Out-Null
-$binary = Join-Path -Path $BinDir -ChildPath $binaryFilename
-Write-DebugVariable 'binary'
-Move-Item -Path $tempBinaryPath -Destination $binary -Force
-Write-Information "installed ${binary}"
+foreach ($commandName in @('cheznous', 'chezmoi')) {
+    $binaryFilename = "${commandName}${binarySuffix}"
+    $tempBinaryPath = Join-Path -Path $tempDir -ChildPath $binaryFilename
+    Write-DebugVariable 'binaryFilename', 'tempBinaryPath'
+    $binary = Join-Path -Path $BinDir -ChildPath $binaryFilename
+    Write-DebugVariable 'binary'
+    Move-Item -Path $tempBinaryPath -Destination $binary -Force
+    Write-Information "installed ${binary}"
+}
+$binary = Join-Path -Path $BinDir -ChildPath "cheznous${binarySuffix}"
 
 Invoke-CleanUp $tempDir
 

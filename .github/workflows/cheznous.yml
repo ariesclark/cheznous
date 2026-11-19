@@ -1,0 +1,62 @@
+name: cheznous
+on:
+  pull_request:
+    branches:
+    - master
+  push:
+    branches:
+    - master
+    tags:
+    - v*-cheznous.*
+permissions:
+  contents: read
+jobs:
+  versions:
+    uses: ./.github/workflows/versions.yml
+  test:
+    needs:
+    - versions
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - ubuntu-22.04
+        - windows-2022
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+      with:
+        persist-credentials: false
+    - uses: ./.github/actions/setup-go
+      with:
+        go-version: ${{ needs.versions.outputs.go-version }}
+    - name: test
+      run: |
+        go test ./...
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+    - versions
+    - test
+    runs-on: ubuntu-22.04 # keep in step with minimum_glibc_version in install.sh.tmpl
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: ./.github/actions/setup-go
+      with:
+        cache-prefix: release-go
+        go-version: ${{ needs.versions.outputs.go-version }}
+    - name: install-release-dependencies
+      run: |
+        sudo apt-get --quiet update
+        sudo apt-get --no-install-suggests --no-install-recommends --quiet --yes install musl-tools
+    - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de   # v7.3.0
+      with:
+        version: ${{ needs.versions.outputs.goreleaser-version }}
+        args: release --clean --config .config/cheznous.goreleaser.yaml
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -84,7 +84,7 @@ func (c *Config) runUpgradeCmd(cmd *cobra.Command, args []string) error {
 	client := chezmoi.NewGitHubClient(ctx, httpClient)
 
 	// Get the latest release.
-	rr, _, err := client.Repositories.GetLatestRelease(ctx, "twpayne", "chezmoi")
+	rr, _, err := client.Repositories.GetLatestRelease(ctx, releaseRepositoryOwner, releaseRepositoryName)
 	if err != nil {
 		return err
 	}
@@ -296,13 +296,7 @@ func (c *Config) replaceExecutable(
 		return fmt.Errorf("%s: cannot find executable in archive", archiveName)
 	}
 
-	// Replace the executable.
-	if runtime.GOOS == "windows" {
-		if err := c.baseSystem.Rename(executableFilenameAbsPath, executableFilenameAbsPath.Append(".old")); err != nil {
-			return err
-		}
-	}
-	return c.baseSystem.WriteFile(executableFilenameAbsPath, executableData, 0o755)
+	return c.replaceExecutables(executableFilenameAbsPath, executableData)
 }
 
 func (c *Config) verifyChecksum(ctx context.Context, rr *github.RepositoryRelease, name string, data []byte) error {

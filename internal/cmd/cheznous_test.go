@@ -15,6 +15,11 @@ import (
 	"chezmoi.io/chezmoi/v2/internal/chezmoitest"
 )
 
+func TestReleaseRepositoryIsTheFork(t *testing.T) {
+	assert.Equal(t, "ariesclark", releaseRepositoryOwner)
+	assert.Equal(t, "cheznous", releaseRepositoryName)
+}
+
 func TestForkReleaseSatisfiesItsUpstreamBaseVersion(t *testing.T) {
 	for _, command := range []string{"init", "apply"} {
 		t.Run(command, func(t *testing.T) {
@@ -115,6 +120,61 @@ func TestCommandNameFromExecutable(t *testing.T) {
 			assert.Equal(t, tc.expectedCommandName, commandNameFromExecutable(tc.executable))
 		})
 	}
+}
+
+func executableFileName(commandName string) string {
+	if runtime.GOOS == "windows" {
+		return commandName + ".exe"
+	}
+	return commandName
+}
+
+func TestReplaceExecutablesReplacesTheOtherCommandNameToo(t *testing.T) {
+	cheznousPath := "/home/user/.local/bin/" + executableFileName("cheznous")
+	chezmoiPath := "/home/user/.local/bin/" + executableFileName("chezmoi")
+	chezmoitest.WithTestFS(t, map[string]any{
+		cheznousPath: &vfst.File{Perm: 0o755, Contents: []byte("old")},
+		chezmoiPath:  &vfst.File{Perm: 0o755, Contents: []byte("old")},
+	}, func(fileSystem vfs.FS) {
+		config := newTestConfig(t, fileSystem)
+		assert.NoError(t, config.replaceExecutables(chezmoi.NewAbsPath(cheznousPath), []byte("new")))
+		vfst.RunTests(t, fileSystem, "",
+			vfst.TestPath(cheznousPath, vfst.TestContentsString("new")),
+			vfst.TestPath(chezmoiPath, vfst.TestContentsString("new")),
+		)
+	})
+}
+
+func TestReplaceExecutablesDoesNotCreateTheOtherCommandName(t *testing.T) {
+	cheznousPath := "/home/user/.local/bin/" + executableFileName("cheznous")
+	chezmoiPath := "/home/user/.local/bin/" + executableFileName("chezmoi")
+	chezmoitest.WithTestFS(t, map[string]any{
+		cheznousPath: &vfst.File{Perm: 0o755, Contents: []byte("old")},
+	}, func(fileSystem vfs.FS) {
+		config := newTestConfig(t, fileSystem)
+		assert.NoError(t, config.replaceExecutables(chezmoi.NewAbsPath(cheznousPath), []byte("new")))
+		vfst.RunTests(t, fileSystem, "",
+			vfst.TestPath(cheznousPath, vfst.TestContentsString("new")),
+			vfst.TestPath(chezmoiPath, vfst.TestDoesNotExist()),
+		)
+	})
+}
+
+func TestReplaceExecutablesLeavesASymlinkToTheExecutable(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the installer copies the executable on Windows")
+	}
+	chezmoitest.WithTestFS(t, map[string]any{
+		"/home/user/.local/bin/cheznous": &vfst.File{Perm: 0o755, Contents: []byte("old")},
+		"/home/user/.local/bin/chezmoi":  &vfst.Symlink{Target: "cheznous"},
+	}, func(fileSystem vfs.FS) {
+		config := newTestConfig(t, fileSystem)
+		assert.NoError(t, config.replaceExecutables(chezmoi.NewAbsPath("/home/user/.local/bin/cheznous"), []byte("new")))
+		vfst.RunTests(t, fileSystem, "",
+			vfst.TestPath("/home/user/.local/bin/cheznous", vfst.TestContentsString("new")),
+			vfst.TestPath("/home/user/.local/bin/chezmoi", vfst.TestSymlinkTarget("cheznous")),
+		)
+	})
 }
 
 func TestCompletionRegistersTheCommandName(t *testing.T) {

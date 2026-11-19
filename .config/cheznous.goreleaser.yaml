@@ -1,0 +1,141 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+
+version: 2
+
+project_name: chezmoi
+
+before:
+  hooks:
+  - go mod download all
+
+builds:
+- id: cheznous-cgo-glibc
+  binary: cheznous
+  env:
+  - CGO_ENABLED=1
+  goos:
+  - linux
+  goarch:
+  - amd64
+  ldflags: &ldflags
+  - -s
+  - -w
+  - -X main.version={{ .Version }}
+  - -X main.commit={{ .Commit }}
+  - -X main.date={{ .Date }}
+  - -X main.builtBy=goreleaser
+- id: chezmoi-cgo-glibc
+  binary: chezmoi
+  env:
+  - CGO_ENABLED=1
+  goos:
+  - linux
+  goarch:
+  - amd64
+  ldflags: *ldflags
+- id: cheznous-cgo-musl
+  binary: cheznous
+  env:
+  - CC=/usr/bin/musl-gcc
+  - CGO_ENABLED=1
+  goos:
+  - linux
+  goarch:
+  - amd64
+  ldflags: &musl-ldflags
+  - -s
+  - -w
+  - -X main.version={{ .Version }}
+  - -X main.commit={{ .Commit }}
+  - -X main.date={{ .Date }}
+  - -X main.builtBy=goreleaser
+  - -linkmode external
+  - --extldflags "-static"
+- id: chezmoi-cgo-musl
+  binary: chezmoi
+  env:
+  - CC=/usr/bin/musl-gcc
+  - CGO_ENABLED=1
+  goos:
+  - linux
+  goarch:
+  - amd64
+  ldflags: *musl-ldflags
+- id: cheznous-nocgo
+  binary: cheznous
+  env:
+  - CGO_ENABLED=0
+  goos: &nocgo-goos
+  - darwin
+  - linux
+  - windows
+  goarch: &nocgo-goarch
+  - amd64
+  - arm64
+  ignore: &nocgo-ignore
+  - goos: linux
+    goarch: amd64
+  ldflags: *ldflags
+- id: chezmoi-nocgo
+  binary: chezmoi
+  env:
+  - CGO_ENABLED=0
+  goos: *nocgo-goos
+  goarch: *nocgo-goarch
+  ignore: *nocgo-ignore
+  ldflags: *ldflags
+
+archives:
+- ids:
+  - cheznous-nocgo
+  - chezmoi-nocgo
+  files:
+  - LICENSE
+  - README.md
+  - completions/*
+  name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+  format_overrides:
+  - goos: windows
+    formats:
+    - zip
+- id: glibc
+  ids:
+  - cheznous-cgo-glibc
+  - chezmoi-cgo-glibc
+  files:
+  - LICENSE
+  - README.md
+  - completions/*
+  name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}-glibc_{{ .Arch }}'
+- id: musl
+  ids:
+  - cheznous-cgo-musl
+  - chezmoi-cgo-musl
+  files:
+  - LICENSE
+  - README.md
+  - completions/*
+  name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}-musl_{{ .Arch }}'
+
+changelog:
+  groups:
+  - title: Features
+    regexp: ^.*?feat(\([[:word:]]+\))??!?:.+$
+    order: 0
+  - title: Fixes
+    regexp: ^.*?fix(\([[:word:]]+\))??!?:.+$
+    order: 1
+  - title: Documentation
+    regexp: ^.*?docs?(\([[:word:]]+\))??!?:.+$
+    order: 2
+  - title: Other
+    order: 999
+  filters:
+    exclude:
+    - ^.*?chore(\(.*\))??!?:.+$
+
+release:
+  github:
+    owner: ariesclark
+    name: cheznous
+  prerelease: 'false'
