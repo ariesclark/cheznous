@@ -87,6 +87,9 @@ func (p SourceRelPath) TargetRelPath(encryptedSuffix string) (RelPath, error) {
 				relPathStrs = append(relPathStrs, "")
 				continue
 			}
+			if isGroupDirName(sourceName) {
+				continue
+			}
 			dirAttr, err := parseDirAttr(sourceName)
 			if err != nil {
 				return RelPath{}, err
@@ -95,6 +98,9 @@ func (p SourceRelPath) TargetRelPath(encryptedSuffix string) (RelPath, error) {
 		}
 	} else {
 		for _, sourceName := range sourceNames[:len(sourceNames)-1] {
+			if isGroupDirName(sourceName) {
+				continue
+			}
 			dirAttr, err := parseDirAttr(sourceName)
 			if err != nil {
 				return RelPath{}, err

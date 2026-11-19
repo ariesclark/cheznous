@@ -291,9 +291,8 @@ func concurrentWalkSourceDir(
 }
 
 func compareDirEntries(a, b fs.DirEntry) int {
-	aName, bName := a.Name(), b.Name()
-	if compare := cmp.Compare(sourceDirEntryOrder[aName], sourceDirEntryOrder[bName]); compare != 0 {
+	if compare := cmp.Compare(sourceDirEntryOrderOf(a), sourceDirEntryOrderOf(b)); compare != 0 {
 		return compare
 	}
-	return cmp.Compare(aName, bName)
+	return cmp.Compare(a.Name(), b.Name())
 }

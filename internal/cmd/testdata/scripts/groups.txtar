@@ -1,0 +1,143 @@
+# test that chezmoi apply applies groups whose condition is true and skips groups whose condition is false
+exec chezmoi apply --force
+cmp $HOME/.shared golden/.shared
+cmp $HOME/.work golden/.work
+! exists $HOME/.personal
+cmp $HOME/.desktop golden/.desktop
+! exists $HOME/.both
+cmp $HOME/.fromdata golden/.fromdata
+cmp $HOME/.either golden/.either.work
+cmp $HOME/.config/shared golden/.config/shared
+cmp $HOME/.config/work golden/.config/work
+cmp $HOME/.config/nested/work golden/.config/nested/work
+cmp $HOME/(literal)/file golden/literal-file
+cmp $HOME/(not-a-group) golden/(not-a-group)
+! exists $HOME/.ignored-by-work
+cmp $HOME/.ignored-by-personal golden/.ignored-by-personal
+
+# test that chezmoi managed lists targets without group directories
+exec chezmoi managed --include=files
+cmp stdout golden/managed
+
+# test that chezmoi source-path gives the path inside the group
+exec chezmoi source-path $HOME${/}.work
+stdout '\(\.work\)[/\\]dot_work$'
+
+chhome home2/user
+
+# test that two active groups giving the same target are an error
+! exec chezmoi apply --force
+stderr '\.collision: inconsistent state'
+
+chhome home3/user
+
+# test that a condition that is not a boolean is an error
+! exec chezmoi apply --force
+stderr '\(\.machine\): group condition must be true or false, got "desktop"'
+
+chhome home4/user
+
+# test that a condition that reads a missing key is an error
+! exec chezmoi apply --force
+stderr 'map has no entry for key "missing"'
+
+chhome home5/user
+
+# test that .chezmoidata inside a group is an error
+! exec chezmoi apply --force
+stderr '\.chezmoidata\.yaml: not allowed in a group'
+
+-- golden/(not-a-group) --
+# contents of (not-a-group)
+-- golden/.config/nested/work --
+# contents of .config/nested/work
+-- golden/.config/shared --
+# contents of .config/shared
+-- golden/.config/work --
+# contents of .config/work
+-- golden/.desktop --
+# contents of .desktop
+-- golden/.either.work --
+# contents of .either from the work group
+-- golden/.fromdata --
+# contents of .fromdata
+-- golden/.ignored-by-personal --
+# contents of .ignored-by-personal
+-- golden/.shared --
+# contents of .shared
+-- golden/.work --
+# contents of .work
+-- golden/literal-file --
+# contents of (literal)/file
+-- golden/managed --
+(literal)/file
+(not-a-group)
+.config/nested/work
+.config/shared
+.config/work
+.desktop
+.either
+.fromdata
+.ignored-by-personal
+.shared
+.work
+-- home/user/.config/chezmoi/chezmoi.toml --
+[data]
+    work = true
+    personal = false
+    machine = "desktop"
+-- home/user/.local/share/chezmoi/(.fromData)/dot_fromdata --
+# contents of .fromdata
+-- home/user/.local/share/chezmoi/(.personal)/.chezmoiignore --
+.ignored-by-personal
+-- home/user/.local/share/chezmoi/(.personal)/dot_personal --
+# contents of .personal
+-- home/user/.local/share/chezmoi/(.work)/(.personal)/dot_both --
+# contents of .both
+-- home/user/.local/share/chezmoi/(.work)/.chezmoiignore --
+.ignored-by-work
+-- home/user/.local/share/chezmoi/(.work)/dot_config/work --
+# contents of .config/work
+-- home/user/.local/share/chezmoi/(.work)/dot_either --
+# contents of .either from the work group
+-- home/user/.local/share/chezmoi/(.work)/dot_work --
+# contents of .work
+-- home/user/.local/share/chezmoi/(eq .machine `desktop`)/dot_desktop --
+# contents of .desktop
+-- home/user/.local/share/chezmoi/(not .work)/dot_either --
+# contents of .either from the non-work group
+-- home/user/.local/share/chezmoi/(not-a-group) --
+# contents of (not-a-group)
+-- home/user/.local/share/chezmoi/.chezmoidata/flags.yaml --
+fromData: true
+-- home/user/.local/share/chezmoi/dot_config/(.work)/nested/work --
+# contents of .config/nested/work
+-- home/user/.local/share/chezmoi/dot_config/shared --
+# contents of .config/shared
+-- home/user/.local/share/chezmoi/dot_ignored-by-personal --
+# contents of .ignored-by-personal
+-- home/user/.local/share/chezmoi/dot_ignored-by-work --
+# contents of .ignored-by-work
+-- home/user/.local/share/chezmoi/dot_shared --
+# contents of .shared
+-- home/user/.local/share/chezmoi/literal_(literal)/file --
+# contents of (literal)/file
+-- home2/user/.config/chezmoi/chezmoi.toml --
+[data]
+    work = true
+-- home2/user/.local/share/chezmoi/(.work)/dot_collision --
+# contents of .collision from (.work)
+-- home2/user/.local/share/chezmoi/(eq 1 1)/dot_collision --
+# contents of .collision from (eq 1 1)
+-- home3/user/.config/chezmoi/chezmoi.toml --
+[data]
+    machine = "desktop"
+-- home3/user/.local/share/chezmoi/(.machine)/dot_file --
+# contents of .file
+-- home4/user/.local/share/chezmoi/(.missing)/dot_file --
+# contents of .file
+-- home5/user/.config/chezmoi/chezmoi.toml --
+[data]
+    work = true
+-- home5/user/.local/share/chezmoi/(.work)/.chezmoidata.yaml --
+inGroup: true

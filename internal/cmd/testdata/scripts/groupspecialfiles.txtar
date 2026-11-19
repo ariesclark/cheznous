@@ -1,0 +1,34 @@
+# test that special files in a group apply only when its condition is true
+exec chezmoi apply --force
+exists $HOME/.kept
+! exists $HOME/.removed
+cmp $HOME/.greeting golden/.greeting
+! exists $HOME/.external
+
+-- golden/.greeting --
+home
+-- home/user/.config/chezmoi/chezmoi.toml --
+[data]
+    work = false
+-- home/user/.kept --
+# contents of .kept
+-- home/user/.local/share/chezmoi/(.work)/.chezmoiexternal.toml --
+[".external"]
+    type = "file"
+    url = "https://invalid.invalid/external"
+-- home/user/.local/share/chezmoi/(.work)/.chezmoiremove --
+.kept
+-- home/user/.local/share/chezmoi/(.work)/.chezmoiscripts/run_fail.sh --
+#!/bin/sh
+
+exit 1
+-- home/user/.local/share/chezmoi/(.work)/.chezmoitemplates/greeting --
+work
+-- home/user/.local/share/chezmoi/(not .work)/.chezmoiremove --
+.removed
+-- home/user/.local/share/chezmoi/(not .work)/.chezmoitemplates/greeting --
+home
+-- home/user/.local/share/chezmoi/dot_greeting.tmpl --
+{{- template "greeting" . -}}
+-- home/user/.removed --
+# contents of .removed

@@ -1113,6 +1113,10 @@ func (s *SourceState) Read(ctx context.Context, options *ReadOptions) error {
 		parentSourceRelPath, sourceName := sourceRelPath.Split()
 
 		switch {
+		case fileInfo.IsDir() && isGroupDirName(fileInfo.Name()):
+			return s.readGroupDir(sourceRelPath, fileInfo.Name())
+		case (fileInfo.Name() == dataName || isPrefixDotFormat(fileInfo.Name(), dataName)) && isInGroupDir(sourceRelPath):
+			return fmt.Errorf("%s: not allowed in a group", sourceRelPath)
 		case fileInfo.Name() == dataName:
 			if !s.readTemplateData {
 				return nil
