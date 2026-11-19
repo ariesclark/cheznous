@@ -831,7 +831,7 @@ func (c *Config) checkVersion() error {
 			return fmt.Errorf("%s: %q: %w", versionAbsPath, data, err)
 		}
 		var zeroVersion semver.Version
-		if c.version != zeroVersion && c.version.LessThan(*minVersion) {
+		if c.version != zeroVersion && !chezmoi.SatisfiesMinimumVersion(c.version, *minVersion) {
 			return &chezmoi.TooOldError{
 				Need: *minVersion,
 				Have: c.version,

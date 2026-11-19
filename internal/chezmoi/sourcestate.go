@@ -3061,7 +3061,7 @@ func (s *SourceState) readVersionFile(sourceAbsPath AbsPath) error {
 		return fmt.Errorf("%s: %q: %w", sourceAbsPath, data, err)
 	}
 	var zeroVersion semver.Version
-	if s.version != zeroVersion && s.version.LessThan(*version) {
+	if s.version != zeroVersion && !SatisfiesMinimumVersion(s.version, *version) {
 		return &TooOldError{
 			Have: s.version,
 			Need: *version,
