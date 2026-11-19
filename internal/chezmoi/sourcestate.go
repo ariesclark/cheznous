@@ -407,6 +407,7 @@ type AddOptions struct {
 	Exact               bool                    // Add the exact_ attribute to added directories.
 	ExactTargetRelPaths chezmoiset.Set[RelPath] // Paths that should be marked exact (if nil and Exact is true, all dirs are exact).
 	Filter              *EntryTypeFilter        // Entry type filter.
+	Group               string                  // Group directory to add entries to.
 	OnIgnoreFunc        func(RelPath)           // Function to call when a target is ignored.
 	PreAddFunc          PreAddFunc              // Function to be called before a source entry is added.
 	ConfigFileAbsPath   AbsPath                 // Path to config file.
@@ -493,6 +494,12 @@ func (s *SourceState) Add(
 		}
 	}
 
+	if options.Group != "" {
+		if err := s.checkAddGroup(options.Group); err != nil {
+			return err
+		}
+	}
+
 	type sourceUpdate struct {
 		destAbsPath    AbsPath
 		entryState     *EntryState
@@ -518,7 +525,15 @@ DEST_ABS_PATH:
 
 		// Find the target's parent directory in the source state.
 		var parentSourceRelPath SourceRelPath
-		if targetParentRelPath := targetRelPath.Dir(); targetParentRelPath == DotRelPath {
+		if _, ok := newSourceStateEntriesByTargetRelPath[targetRelPath.Dir()]; !ok && options.Group != "" {
+			groupedSourceDir, err := s.groupedSourceDir(sourceSystem, options.Group, targetRelPath.Dir())
+			if err != nil {
+				return err
+			}
+			parentSourceRelPath = groupedSourceDir
+		} else if groupSourceDir, ok := s.groupSourceDir(targetRelPath); ok {
+			parentSourceRelPath = groupSourceDir
+		} else if targetParentRelPath := targetRelPath.Dir(); targetParentRelPath == DotRelPath {
 			parentSourceRelPath = SourceRelPath{}
 		} else if parentEntry, ok := newSourceStateEntriesByTargetRelPath[targetParentRelPath]; ok {
 			parentSourceRelPath = parentEntry.SourceRelPath()
@@ -3122,7 +3137,9 @@ func canonicalSourceStateEntry(sourceStateEntries []SourceStateEntry) (SourceSta
 	for i, sourceStateEntry := range sourceStateEntries {
 		switch sourceStateEntry := sourceStateEntry.(type) {
 		case *SourceStateDir:
-			firstSourceStateDir = sourceStateEntry
+			if firstSourceStateDir == nil || isInGroupDir(firstSourceStateDir.sourceRelPath) && !isInGroupDir(sourceStateEntry.sourceRelPath) {
+				firstSourceStateDir = sourceStateEntry
+			}
 			sourceStateDirs[i] = sourceStateEntry
 		case *SourceStateImplicitDir:
 			sourceStateDirs[i] = sourceStateEntry
@@ -3151,7 +3168,8 @@ func canonicalSourceStateEntry(sourceStateEntries []SourceStateEntry) (SourceSta
 			}
 		}
 		// If all directories are equivalent then return the first real
-		// *SourceStateDir, if it exists.
+		// *SourceStateDir outside any group, or the first in a group, if it
+		// exists.
 		if firstSourceStateDir != nil {
 			return firstSourceStateDir, true
 		}

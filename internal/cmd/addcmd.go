@@ -35,6 +35,7 @@ type addCmdConfig struct {
 	exact            bool
 	filter           *chezmoi.EntryTypeFilter
 	follow           bool
+	group            string
 	new              bool
 	prompt           bool
 	quiet            bool
@@ -67,6 +68,7 @@ func (c *Config) newAddCmd() *cobra.Command {
 	addCmd.Flags().BoolVar(&c.Add.exact, "exact", c.Add.exact, "Add directories exactly")
 	addCmd.Flags().VarP(c.Add.filter.Exclude, "exclude", "x", "Exclude entry types")
 	addCmd.Flags().BoolVarP(&c.Add.follow, "follow", "f", c.Add.follow, "Add symlink targets instead of symlinks")
+	addCmd.Flags().StringVar(&c.Add.group, "group", c.Add.group, "Add to the group directory with this name")
 	addCmd.Flags().VarP(c.Add.filter.Include, "include", "i", "Include entry types")
 	addCmd.Flags().BoolVar(&c.Add.new, "new", c.Add.new, "Create new file if target does not exist")
 	addCmd.Flags().BoolVarP(&c.Add.prompt, "prompt", "p", c.Add.prompt, "Prompt before adding each entry")
@@ -270,6 +272,7 @@ func (c *Config) runAddCmd(cmd *cobra.Command, args []string, sourceState *chezm
 			ExactTargetRelPaths: exactTargetRelPaths,
 			Errorf:              c.errorf,
 			Filter:              c.Add.filter,
+			Group:               c.Add.group,
 			OnIgnoreFunc:        c.defaultOnIgnoreFunc,
 			PreAddFunc:          c.defaultPreAddFunc,
 			ConfigFileAbsPath:   configFileAbsPath,

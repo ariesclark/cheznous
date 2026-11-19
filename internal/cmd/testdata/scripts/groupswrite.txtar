@@ -1,0 +1,77 @@
+exec chezmoi apply --force
+
+# test that chezmoi edit edits the file in its group
+exec chezmoi edit $HOME${/}.work
+grep -count=1 '# edited' $CHEZMOISOURCEDIR/(.work)/dot_work
+! exists $CHEZMOISOURCEDIR/dot_work
+
+# test that chezmoi re-add writes the target back to the file in its group
+cp golden/.work.changed $HOME/.work
+exec chezmoi re-add $HOME${/}.work
+cmp $CHEZMOISOURCEDIR/(.work)/dot_work golden/.work.changed
+! exists $CHEZMOISOURCEDIR/dot_work
+
+# test that chezmoi chattr renames the file in its group
+exec chezmoi chattr +private $HOME${/}.work
+exists $CHEZMOISOURCEDIR/(.work)/private_dot_work
+! exists $CHEZMOISOURCEDIR/(.work)/dot_work
+! exists $CHEZMOISOURCEDIR/private_dot_work
+
+# test that chezmoi forget removes the file from its group
+exec chezmoi forget --force $HOME${/}.work
+! exists $CHEZMOISOURCEDIR/(.work)/private_dot_work
+exists $HOME/.work
+
+# test that chezmoi add adds a file to the group that has its parent directory
+cp golden/new $HOME/.config/workdir/new
+exec chezmoi add $HOME${/}.config${/}workdir${/}new
+cmp $CHEZMOISOURCEDIR/(.work)/dot_config/workdir/new golden/new
+! exists $CHEZMOISOURCEDIR/dot_config/workdir/new
+
+# test that chezmoi add adds a file outside any group when its parent directory is in none
+cp golden/new $HOME/.new
+exec chezmoi add $HOME${/}.new
+cmp $CHEZMOISOURCEDIR/dot_new golden/new
+
+# test that chezmoi add adds a file to the shared directory when its parent directory is also in a group
+cp golden/new $HOME/.config/new
+exec chezmoi add $HOME${/}.config${/}new
+cmp $CHEZMOISOURCEDIR/dot_config/new golden/new
+! exists $CHEZMOISOURCEDIR/(.work)/dot_config/new
+
+# test that chezmoi add --group adds a file to that group, creating its directories there
+mkdir $HOME/.local/share/app
+cp golden/new $HOME/.local/share/app/grouped
+exec chezmoi add --group (.work) $HOME${/}.local${/}share${/}app${/}grouped
+cmp $CHEZMOISOURCEDIR/(.work)/dot_local/share/app/grouped golden/new
+
+# test that chezmoi add --group moves a file from another directory into that group
+exec chezmoi add --group (.work) $HOME${/}.new
+cmp $CHEZMOISOURCEDIR/(.work)/dot_new golden/new
+! exists $CHEZMOISOURCEDIR/dot_new
+
+# test that chezmoi add --group refuses a group whose condition is false
+cp golden/new $HOME/.other
+! exec chezmoi add --group '(not .work)' $HOME${/}.other
+stderr '\(not \.work\): group condition is false on this machine'
+! exists $CHEZMOISOURCEDIR/(not .work)/dot_other
+
+# test that chezmoi add --group refuses a name that is not a group
+! exec chezmoi add --group work $HOME${/}.other
+stderr 'work: not a group, which is a template pipeline in parentheses'
+
+-- golden/.work.changed --
+# contents of .work, changed in the target
+-- golden/new --
+# contents of new
+-- home/user/.config/chezmoi/chezmoi.toml --
+[data]
+    work = true
+-- home/user/.local/share/chezmoi/(.work)/dot_config/workdir/file --
+# contents of .config/workdir/file
+-- home/user/.local/share/chezmoi/(.work)/dot_work --
+# contents of .work
+-- home/user/.local/share/chezmoi/(not .work)/dot_home --
+# contents of .home
+-- home/user/.local/share/chezmoi/dot_config/shared --
+# contents of .config/shared

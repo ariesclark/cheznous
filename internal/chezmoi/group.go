@@ -1,8 +1,10 @@
 package chezmoi
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
+	"path"
 	"strings"
 )
 
@@ -34,6 +36,60 @@ func isInGroupDir(sourceRelPath SourceRelPath) bool {
 		}
 	}
 	return false
+}
+
+// groupSourceDir returns the source directory of the entry in a group that
+// already manages targetRelPath, so that rewriting the entry keeps it in its
+// group.
+func (s *SourceState) groupSourceDir(targetRelPath RelPath) (SourceRelPath, bool) {
+	sourceStateEntry := s.root.Get(targetRelPath)
+	if sourceStateEntry == nil || sourceStateEntry.Origin().IsExternal() {
+		return SourceRelPath{}, false
+	}
+	sourceRelPath := sourceStateEntry.SourceRelPath()
+	if !isInGroupDir(sourceRelPath) {
+		return SourceRelPath{}, false
+	}
+	return sourceRelPath.Dir(), true
+}
+
+// checkAddGroup returns an error unless group is the name of a group directory
+// whose condition is true.
+func (s *SourceState) checkAddGroup(group string) error {
+	if !isGroupDirName(group) {
+		return fmt.Errorf("%s: not a group, which is a template pipeline in parentheses", group)
+	}
+	switch err := s.readGroupDir(NewSourceRelDirPath(group), group); {
+	case errors.Is(err, fs.SkipDir):
+		return fmt.Errorf("%s: group condition is false on this machine", group)
+	default:
+		return err
+	}
+}
+
+// groupedSourceDir returns the source directory in group for the target
+// directory targetDirRelPath, which is its current source directory with any
+// group directories taken out, and creates it in sourceSystem.
+func (s *SourceState) groupedSourceDir(sourceSystem System, group string, targetDirRelPath RelPath) (SourceRelPath, error) {
+	var currentSourceDir SourceRelPath
+	if targetDirRelPath != DotRelPath {
+		sourceStateEntry := s.root.Get(targetDirRelPath)
+		if sourceStateEntry == nil {
+			return SourceRelPath{}, fmt.Errorf("%s: parent directory not in source state", targetDirRelPath)
+		}
+		currentSourceDir = sourceStateEntry.SourceRelPath()
+	}
+	sourceNames := []string{group}
+	for _, sourceName := range strings.Split(currentSourceDir.String(), "/") {
+		if sourceName != "" && !isGroupDirName(sourceName) {
+			sourceNames = append(sourceNames, sourceName)
+		}
+	}
+	groupedSourceDir := NewSourceRelDirPath(path.Join(sourceNames...))
+	if err := MkdirAll(sourceSystem, s.sourceDirAbsPath.Join(groupedSourceDir.RelPath()), fs.ModePerm); err != nil {
+		return SourceRelPath{}, err
+	}
+	return groupedSourceDir, nil
 }
 
 // readGroupDir returns nil if the condition of the group directory at

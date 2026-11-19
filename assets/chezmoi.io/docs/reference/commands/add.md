@@ -51,6 +51,16 @@ Set the `exact` attribute on added directories.
 If the last part of a target is a symlink, add the target of the symlink
 instead of the symlink itself.
 
+### `--group` *group*
+
+Add the targets to the group directory *group* at the root of the source
+directory, such as ``--group '(eq .chezmoi.os `linux`)'``, creating it if
+needed. A target already in the source state moves into the group. *group*
+must be a template pipeline in parentheses that is true on this machine.
+
+Without `--group`, a new target goes into its parent's source directory outside
+any group, or, when the parent is only in groups, into the parent's group.
+
 ### `--new`
 
 Create a new file if the target does not exist.

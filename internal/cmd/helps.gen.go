@@ -33,6 +33,7 @@ var helps = map[string]*help{
 			"exclude",
 			"follow",
 			"force",
+			"group",
 			"include",
 			"new",
 			"prompt",
