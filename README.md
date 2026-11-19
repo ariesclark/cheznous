@@ -1,5 +1,7 @@
 # ![chezmoi logo](assets/images/logo-144px.svg) chezmoi
 
+> This is [cheznous](CHEZNOUS.md), a fork of chezmoi that adds groups and publishes its own releases.
+
 [![GitHub Release](https://img.shields.io/github/release/twpayne/chezmoi.svg)](https://github.com/twpayne/chezmoi/releases)
 
 Manage your dotfiles across multiple diverse machines, securely.
