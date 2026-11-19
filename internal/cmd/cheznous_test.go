@@ -1,12 +1,15 @@
 package cmd
 
 import (
+	"bytes"
 	"errors"
+	"runtime"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
 	"github.com/coreos/go-semver/semver"
 	vfs "github.com/twpayne/go-vfs/v5"
+	"github.com/twpayne/go-vfs/v5/vfst"
 
 	"chezmoi.io/chezmoi/v2/internal/chezmoi"
 	"chezmoi.io/chezmoi/v2/internal/chezmoitest"
@@ -85,4 +88,42 @@ func TestForkReleasesSortByUpstreamBaseThenForkNumber(t *testing.T) {
 	for i := 1; i < len(ordered); i++ {
 		assert.True(t, semver.New(ordered[i-1]).LessThan(*semver.New(ordered[i])), "%s < %s", ordered[i-1], ordered[i])
 	}
+}
+
+func TestCommandNameFromExecutable(t *testing.T) {
+	type testCase struct {
+		executable          string
+		expectedCommandName string
+	}
+	testCases := []testCase{
+		{executable: "cheznous", expectedCommandName: "cheznous"},
+		{executable: "chezmoi", expectedCommandName: "chezmoi"},
+	}
+	if runtime.GOOS == "windows" {
+		testCases = append(testCases,
+			testCase{executable: `C:\Users\user\.local\bin\cheznous.exe`, expectedCommandName: "cheznous"},
+			testCase{executable: `C:\Users\user\.local\bin\CHEZMOI.EXE`, expectedCommandName: "CHEZMOI"},
+		)
+	} else {
+		testCases = append(testCases,
+			testCase{executable: "/usr/local/bin/cheznous", expectedCommandName: "cheznous"},
+			testCase{executable: "/usr/local/bin/chezmoi", expectedCommandName: "chezmoi"},
+		)
+	}
+	for _, tc := range testCases {
+		t.Run(tc.executable, func(t *testing.T) {
+			assert.Equal(t, tc.expectedCommandName, commandNameFromExecutable(tc.executable))
+		})
+	}
+}
+
+func TestCompletionRegistersTheCommandName(t *testing.T) {
+	chezmoitest.WithTestFS(t, map[string]any{
+		"/home/user": &vfst.Dir{Perm: 0o755},
+	}, func(fileSystem vfs.FS) {
+		var stdout bytes.Buffer
+		config := newTestConfig(t, fileSystem, withCommandName("cheznous"), withStdout(&stdout))
+		assert.NoError(t, config.execute([]string{"completion", "bash"}))
+		assert.Contains(t, stdout.String(), "complete -o default -F __start_cheznous cheznous\n")
+	})
 }

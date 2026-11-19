@@ -249,6 +249,7 @@ type Config struct {
 	overrideDataFileAbsPath  chezmoi.AbsPath
 
 	// Version information.
+	commandName string
 	version     semver.Version
 	versionInfo VersionInfo
 	versionStr  string
@@ -380,6 +381,7 @@ func newConfig(options ...configOption) (*Config, error) {
 		ConfigFile: newConfigFile(bds),
 
 		// Global configuration.
+		commandName:   "chezmoi",
 		configFormat:  newChoiceFlag("", readDataFormatValues),
 		homeDir:       userHomeDir,
 		templateFuncs: sprig.TxtFuncMap(),
@@ -1969,7 +1971,7 @@ func (c *Config) newExternalDiffSystem(s chezmoi.System) *chezmoi.ExternalDiffSy
 // newRootCmd returns a new root github.com/spf13/cobra.Command.
 func (c *Config) newRootCmd() (*cobra.Command, error) {
 	rootCmd := &cobra.Command{
-		Use:                "chezmoi",
+		Use:                c.commandName,
 		Short:              "Manage your dotfiles across multiple diverse machines, securely",
 		Version:            c.versionStr,
 		PersistentPreRunE:  c.persistentPreRunRootE,

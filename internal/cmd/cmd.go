@@ -255,6 +255,7 @@ func runMain(versionInfo VersionInfo, args []string) (err error) {
 	var config *Config
 	if config, err = newConfig(
 		withVersionInfo(versionInfo),
+		withCommandName(commandNameFromExecutable(os.Args[0])),
 	); err != nil {
 		return err
 	}
