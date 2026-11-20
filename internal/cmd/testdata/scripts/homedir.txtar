@@ -56,10 +56,10 @@ exec chezmoi source-path $HOME${/}.bashrc
 stdout '~[/\\]dot_bashrc\.tmpl$'
 
 # test that chezmoi target-path gives the home path for a file in the ~ directory with either destination
-exec chezmoi target-path $CHEZMOISOURCEDIR/~/dot_bashrc.tmpl
-stdout '^'$HOME'/\.bashrc$'
-exec chezmoi target-path --destination $WORK $CHEZMOISOURCEDIR/~/dot_bashrc.tmpl
-stdout '^'$WORK'/home/user/\.bashrc$'
+[!windows] exec chezmoi target-path $CHEZMOISOURCEDIR/~/dot_bashrc.tmpl
+[!windows] stdout ^${HOME@R}/\.bashrc$
+[!windows] exec chezmoi target-path --destination $WORK $CHEZMOISOURCEDIR/~/dot_bashrc.tmpl
+[!windows] stdout ^${WORK@R}/home/user/\.bashrc$
 
 chhome home2/user
 
