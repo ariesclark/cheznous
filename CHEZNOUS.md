@@ -43,3 +43,25 @@ A directory whose name is a Go template pipeline in parentheses is a group. Its 
 * A group's condition sees the config data, the `.chezmoidata` next to it and above it, and chezmoi's own data such as `.chezmoi.os`. For anything a pipeline cannot express, compute a value in the config template and test it, as in `(.work)`.
 * `edit`, `re-add`, `chattr` and `forget` keep a file in its group. `add` puts a new file outside any group, unless its parent directory is only in groups, where it joins the parent's group. ``add --group '(eq .chezmoi.os `linux`)'`` puts targets into that group instead, or moves them there, creating the group's directories; the group's condition must be true.
 * A file with a name in parentheses is an ordinary file. For a directory whose target name is in parentheses, use the `literal_` prefix, as in `literal_(name)`.
+
+## The `~` directory
+
+A source directory with a `~` directory at its top describes a whole machine: `~` holds the home directory, and everything else is relative to the destination directory, such as `/`:
+
+```text
+~/.local/share/chezmoi/
+├── .chezmoidata.yaml                      → read by every apply
+├── ~/
+│   ├── dot_bashrc                         → ~/.bashrc
+│   └── (eq .chezmoi.os `windows`)/…       → groups work inside ~ as anywhere
+└── (eq .chezmoi.os `linux`)/
+    └── etc/wsl.conf                       → /etc/wsl.conf
+```
+
+* An apply to the home directory, the default, writes only `~`. It still reads the `.chezmoidata`, `.chezmoitemplates` and `.chezmoiversion` outside `~`.
+* An apply to a directory that contains the home directory, such as `sudo cheznous --destination / apply`, writes both. The home directory is wherever `$HOME` is in it, so run it with your `HOME`, as `sudo env HOME=$HOME cheznous --destination / apply` does. Any other destination is an error.
+* Run as root, it gives the home directory's owner everything it writes in the home directory, and runs the scripts from `~` as them, with their `HOME`, `USER` and `LOGNAME`. The other scripts run as root, with root's. Root writes in a directory that another user can change, so do this only on a machine where that user is you.
+* `.chezmoiignore`, `.chezmoiremove`, `.chezmoiscripts` and `.chezmoiexternal` in `~` are for the home directory, and outside it for the rest.
+* `~` must be at the top of the source directory, not inside a group.
+* `add` puts a new file from the home directory into `~`, and any other new file outside it.
+* A source directory without a `~` directory works as before.

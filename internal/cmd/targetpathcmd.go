@@ -52,7 +52,11 @@ func (c *Config) runTargetPathCmd(cmd *cobra.Command, args []string) error {
 			sourceRelPath = chezmoi.NewSourceRelPath(argRelPath.String())
 		}
 
-		targetRelPath, err := sourceRelPath.TargetRelPath(c.encryption.EncryptedSuffix())
+		homeRelPath, err := chezmoi.HomeRelPath(c.DestDirAbsPath, c.homeDirAbsPath)
+		if err != nil {
+			homeRelPath = chezmoi.EmptyRelPath
+		}
+		targetRelPath, err := chezmoi.TargetRelPathIn(sourceRelPath, c.encryption.EncryptedSuffix(), homeRelPath)
 		if err != nil {
 			return err
 		}

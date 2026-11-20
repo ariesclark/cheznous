@@ -184,6 +184,9 @@ type SourceState struct {
 	system                  System
 	sourceDirAbsPath        AbsPath
 	destDirAbsPath          AbsPath
+	homeDirAbsPath          AbsPath
+	hasHomeDir              bool
+	homeRelPath             RelPath
 	cacheDirAbsPath         AbsPath
 	createScriptTempDirOnce sync.Once
 	scriptTempDirAbsPath    AbsPath
@@ -525,6 +528,7 @@ DEST_ABS_PATH:
 
 		// Find the target's parent directory in the source state.
 		var parentSourceRelPath SourceRelPath
+		targetParentRelPath := targetRelPath.Dir()
 		if _, ok := newSourceStateEntriesByTargetRelPath[targetRelPath.Dir()]; !ok && options.Group != "" {
 			groupedSourceDir, err := s.groupedSourceDir(sourceSystem, options.Group, targetRelPath.Dir())
 			if err != nil {
@@ -533,8 +537,8 @@ DEST_ABS_PATH:
 			parentSourceRelPath = groupedSourceDir
 		} else if groupSourceDir, ok := s.groupSourceDir(targetRelPath); ok {
 			parentSourceRelPath = groupSourceDir
-		} else if targetParentRelPath := targetRelPath.Dir(); targetParentRelPath == DotRelPath {
-			parentSourceRelPath = SourceRelPath{}
+		} else if targetDirSourceDir, ok := s.targetDirSourceDir(targetParentRelPath); ok {
+			parentSourceRelPath = targetDirSourceDir
 		} else if parentEntry, ok := newSourceStateEntriesByTargetRelPath[targetParentRelPath]; ok {
 			parentSourceRelPath = parentEntry.SourceRelPath()
 		} else if nodes := s.root.GetNodes(targetParentRelPath); nodes != nil {
@@ -821,7 +825,7 @@ func (s *SourceState) AddDestAbsPathInfos(
 		destAbsPathInfos[destAbsPath] = fileInfo
 
 		parentAbsPath := destAbsPath.Dir()
-		if parentAbsPath == s.destDirAbsPath {
+		if parentAbsPath == s.destDirAbsPath || s.hasHomeDir && parentAbsPath == s.homeDirAbsPath {
 			return nil
 		}
 		parentRelPath := parentAbsPath.MustTrimDirPrefix(s.destDirAbsPath)
@@ -1090,6 +1094,9 @@ func (s *SourceState) Read(ctx context.Context, options *ReadOptions) error {
 	case !fileInfo.IsDir():
 		return fmt.Errorf("%s: not a directory", s.sourceDirAbsPath)
 	}
+	if err := s.readHomeDir(); err != nil {
+		return err
+	}
 
 	// Read all source entries.
 	var allSourceStateEntriesMu sync.Mutex
@@ -1126,6 +1133,17 @@ func (s *SourceState) Read(ctx context.Context, options *ReadOptions) error {
 			isDir:   fileInfo.IsDir(),
 		}
 		parentSourceRelPath, sourceName := sourceRelPath.Split()
+
+		switch action, err := s.homeDirActionOf(sourceRelPath); {
+		case err != nil:
+			return err
+		case action == homeDirActionEnter:
+			return nil
+		case action == homeDirActionSkip && fileInfo.IsDir():
+			return fs.SkipDir
+		case action == homeDirActionSkip:
+			return nil
+		}
 
 		switch {
 		case fileInfo.IsDir() && isGroupDirName(fileInfo.Name()):
@@ -1200,7 +1218,7 @@ func (s *SourceState) Read(ctx context.Context, options *ReadOptions) error {
 			if err != nil {
 				return err
 			}
-			targetRelPath, err := parentSourceRelPath.Dir().TargetRelPath(s.encryption.EncryptedSuffix())
+			targetRelPath, err := s.targetRelPath(parentSourceRelPath.Dir(), s.encryption.EncryptedSuffix())
 			if err != nil {
 				return err
 			}
@@ -1233,7 +1251,7 @@ func (s *SourceState) Read(ctx context.Context, options *ReadOptions) error {
 			if err != nil {
 				return err
 			}
-			targetRelPath, err := parentSourceRelPath.Dir().TargetRelPath(s.encryption.EncryptedSuffix())
+			targetRelPath, err := s.targetRelPath(parentSourceRelPath.Dir(), s.encryption.EncryptedSuffix())
 			if err != nil {
 				return err
 			}
@@ -1273,7 +1291,7 @@ func (s *SourceState) Read(ctx context.Context, options *ReadOptions) error {
 		for _, external := range s.externals[externalRelPath] {
 			parentRelPath, _ := externalRelPath.Split()
 			var parentSourceRelPath SourceRelPath
-			switch parentSourceStateEntry, err := s.root.MkdirAll(parentRelPath, external, s.umask); {
+			switch parentSourceStateEntry, err := s.mkdirAll(parentRelPath, external); {
 			case err != nil:
 				return err
 			case parentSourceStateEntry != nil:
@@ -1529,7 +1547,7 @@ func (s *SourceState) addExternal(sourceAbsPath, parentAbsPath AbsPath) error {
 		return err
 	}
 	parentSourceRelPath := NewSourceRelDirPath(parentRelPath.String())
-	parentTargetSourceRelPath, err := parentSourceRelPath.TargetRelPath(s.encryption.EncryptedSuffix())
+	parentTargetSourceRelPath, err := s.targetRelPath(parentSourceRelPath, s.encryption.EncryptedSuffix())
 	if err != nil {
 		return err
 	}
@@ -1621,7 +1639,7 @@ func (s *SourceState) addPatterns(patternSet *PatternSet, sourceAbsPath AbsPath,
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	dir, err := sourceRelPath.Dir().TargetRelPath("")
+	dir, err := s.targetRelPath(sourceRelPath.Dir(), "")
 	if err != nil {
 		return err
 	}
@@ -2413,6 +2431,9 @@ func (s *SourceState) newSourceStateFileEntryFromSymlink(
 		case strings.HasPrefix(linkname, s.sourceDirAbsPath.String()+"/"):
 			contents = []byte("{{ .chezmoi.sourceDir }}/" + linkname[s.sourceDirAbsPath.Len()+1:])
 			isTemplate = true
+		case s.hasHomeDir && strings.HasPrefix(linkname, s.homeDirAbsPath.String()+"/"):
+			contents = []byte("{{ .chezmoi.homeDir }}/" + linkname[s.homeDirAbsPath.Len()+1:])
+			isTemplate = true
 		case strings.HasPrefix(linkname, s.destDirAbsPath.String()+"/"):
 			contents = []byte("{{ .chezmoi.homeDir }}/" + linkname[s.destDirAbsPath.Len()+1:])
 			isTemplate = true
@@ -2470,7 +2491,7 @@ func (s *SourceState) populateImplicitParentDirs(
 	external *External,
 	sourceStateEntries map[RelPath][]SourceStateEntry,
 ) map[RelPath][]SourceStateEntry {
-	for relPath := externalRelPath.Dir(); relPath != DotRelPath; relPath = relPath.Dir() {
+	for relPath := externalRelPath.Dir(); relPath != DotRelPath && relPath != s.homeRelPath; relPath = relPath.Dir() {
 		sourceStateEntries[relPath] = append(sourceStateEntries[relPath],
 			&SourceStateImplicitDir{
 				origin: external,
@@ -3043,7 +3064,7 @@ func (s *SourceState) readScriptsDir(ctx context.Context, scriptsDirAbsPath AbsP
 			if fileAttr.Type != SourceFileTypeScript {
 				return fmt.Errorf("%s: not a script", sourceAbsPath)
 			}
-			targetRelPath, err := parentSourceRelPath.Dir().TargetRelPath(s.encryption.EncryptedSuffix())
+			targetRelPath, err := s.targetRelPath(parentSourceRelPath.Dir(), s.encryption.EncryptedSuffix())
 			if err != nil {
 				return err
 			}

@@ -1,0 +1,145 @@
+httpd www
+
+# test that chezmoi apply to the home directory writes only the ~ directory
+exec chezmoi apply --force
+cmp $HOME/.bashrc golden/.bashrc
+cmp $HOME/.grouped golden/.grouped
+cmp $HOME/.fromhomedata golden/.fromhomedata
+! exists $HOME/.ignored
+! exists $HOME/~
+! exists $HOME/etc
+! exists $WORK/etc/wsl.conf
+
+# test that chezmoi managed lists the ~ directory without its name
+exec chezmoi managed
+cmp stdout golden/managed-home
+
+# test that chezmoi apply to a directory that contains the home directory writes both parts
+exec chezmoi apply --force --destination $WORK
+cmp $WORK/etc/wsl.conf golden/wsl.conf
+cmp $WORK/etc/grouped golden/etc-grouped
+cmp $WORK/system-file golden/system-file
+cmp $HOME/.bashrc golden/.bashrc
+! exists $WORK/etc/ignored
+! exists $WORK/.bashrc
+! exists $WORK/~
+
+# test that chezmoi managed with that destination lists both parts
+exec chezmoi managed --destination $WORK
+cmp stdout golden/managed-all
+
+# test that chezmoi apply to a directory that does not contain the home directory is an error
+mkdir $WORK/elsewhere
+! exec chezmoi apply --force --destination $WORK/elsewhere
+stderr 'the destination directory must be the home directory .* or contain it'
+
+# test that chezmoi add puts a new file in the home directory into the ~ directory
+exec chezmoi add $HOME/.newfile
+cmp $CHEZMOISOURCEDIR/~/dot_newfile $HOME/.newfile
+
+# test that chezmoi add with a destination that contains the home directory puts home files into the ~ directory
+exec chezmoi add --destination $WORK $HOME/.newfile2
+cmp $CHEZMOISOURCEDIR/~/dot_newfile2 $HOME/.newfile2
+! exists $CHEZMOISOURCEDIR/home
+
+# test that chezmoi add --group puts the group inside the ~ directory
+exec chezmoi add --group (true) $HOME/.groupednew $HOME/.config/groupednew
+cmp $CHEZMOISOURCEDIR/~/(true)/dot_groupednew $HOME/.groupednew
+cmp $CHEZMOISOURCEDIR/~/(true)/dot_config/groupednew $HOME/.config/groupednew
+
+# test that chezmoi add puts a new file outside the home directory outside the ~ directory
+exec chezmoi add --destination $WORK $WORK/etc/newfile
+cmp $CHEZMOISOURCEDIR/etc/newfile $WORK/etc/newfile
+
+# test that chezmoi source-path gives the path inside the ~ directory
+exec chezmoi source-path $HOME${/}.bashrc
+stdout '~[/\\]dot_bashrc\.tmpl$'
+
+# test that chezmoi target-path gives the home path for a file in the ~ directory with either destination
+exec chezmoi target-path $CHEZMOISOURCEDIR/~/dot_bashrc.tmpl
+stdout '^'$HOME'/\.bashrc$'
+exec chezmoi target-path --destination $WORK $CHEZMOISOURCEDIR/~/dot_bashrc.tmpl
+stdout '^'$WORK'/home/user/\.bashrc$'
+
+chhome home2/user
+
+# test that a ~ directory below the top of the source directory is an error
+! exec chezmoi apply --force
+stderr '\(true\)/~: the ~ directory must be at the top of the source directory'
+
+-- etc/newfile --
+# contents of etc/newfile
+-- golden/.bashrc --
+# .bashrc for user
+-- golden/.fromhomedata --
+# from data in ~
+-- golden/.grouped --
+# contents of .grouped
+-- golden/etc-grouped --
+# contents of etc/grouped
+-- golden/managed-all --
+etc
+etc/grouped
+etc/wsl.conf
+home/user/.bashrc
+home/user/.config
+home/user/.config/shared
+home/user/.external
+home/user/.fromhomedata
+home/user/.grouped
+system-file
+-- golden/managed-home --
+.bashrc
+.config
+.config/shared
+.external
+.fromhomedata
+.grouped
+-- golden/system-file --
+# contents of system-file
+-- golden/wsl.conf --
+[user]
+default = user
+-- home/user/.config/groupednew --
+# contents of .config/groupednew
+-- home/user/.groupednew --
+# contents of .groupednew
+-- home/user/.local/share/chezmoi/(true)/etc/grouped --
+# contents of etc/grouped
+-- home/user/.local/share/chezmoi/.chezmoidata.yaml --
+user: user
+-- home/user/.local/share/chezmoi/.chezmoiignore --
+etc/ignored
+-- home/user/.local/share/chezmoi/etc/ignored --
+# contents of etc/ignored
+-- home/user/.local/share/chezmoi/etc/wsl.conf.tmpl --
+[user]
+default = {{ .user }}
+-- home/user/.local/share/chezmoi/system-file --
+# contents of system-file
+-- home/user/.local/share/chezmoi/~/(true)/dot_grouped --
+# contents of .grouped
+-- home/user/.local/share/chezmoi/~/.chezmoidata.yaml --
+fromHomeData: from data in ~
+-- home/user/.local/share/chezmoi/~/.chezmoiexternal.toml.tmpl --
+[".external"]
+    type = "file"
+    url = "{{ env "HTTPD_URL" }}/external"
+-- home/user/.local/share/chezmoi/~/.chezmoiignore --
+.ignored
+-- home/user/.local/share/chezmoi/~/dot_bashrc.tmpl --
+# .bashrc for {{ .user }}
+-- home/user/.local/share/chezmoi/~/dot_config/shared --
+# contents of .config/shared
+-- home/user/.local/share/chezmoi/~/dot_fromhomedata.tmpl --
+# {{ .fromHomeData }}
+-- home/user/.local/share/chezmoi/~/dot_ignored --
+# contents of .ignored
+-- home/user/.newfile --
+# contents of .newfile
+-- home/user/.newfile2 --
+# contents of .newfile2
+-- home2/user/.local/share/chezmoi/(true)/~/dot_bashrc --
+# contents of .bashrc
+-- www/external --
+# contents of external

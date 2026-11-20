@@ -2169,6 +2169,7 @@ func (c *Config) newSourceState(
 		chezmoi.WithDestDir(c.DestDirAbsPath),
 		chezmoi.WithEncryption(c.encryption),
 		chezmoi.WithHTTPClient(httpClient),
+		chezmoi.WithHomeDir(c.homeDirAbsPath),
 		chezmoi.WithInterpreters(c.Interpreters),
 		chezmoi.WithLogger(sourceStateLogger),
 		chezmoi.WithMode(c.Mode),
@@ -2471,7 +2472,17 @@ func (c *Config) persistentPreRunRootE(cmd *cobra.Command, args []string) error 
 		chezmoi.RealSystemWithSafe(c.Safe),
 		chezmoi.RealSystemWithScriptTempDir(c.ScriptTempDir),
 	)
-	c.baseSystem = realSystem
+	homeOwnerSystem, err := chezmoi.NewHomeOwnerSystem(realSystem, c.DestDirAbsPath, c.homeDirAbsPath, func() (bool, error) {
+		sourceDirAbsPath, err := c.getSourceDirAbsPath(nil)
+		if err != nil {
+			return false, err
+		}
+		return chezmoi.HasHomeDir(realSystem, sourceDirAbsPath)
+	})
+	if err != nil {
+		return err
+	}
+	c.baseSystem = homeOwnerSystem
 	if c.debug {
 		systemLogger := c.logger.With(slog.String(logComponentKey, logComponentValueSystem))
 		c.baseSystem = chezmoi.NewDebugSystem(c.baseSystem, systemLogger)

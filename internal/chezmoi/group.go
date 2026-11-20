@@ -71,20 +71,26 @@ func (s *SourceState) checkAddGroup(group string) error {
 // directory targetDirRelPath, which is its current source directory with any
 // group directories taken out, and creates it in sourceSystem.
 func (s *SourceState) groupedSourceDir(sourceSystem System, group string, targetDirRelPath RelPath) (SourceRelPath, error) {
-	var currentSourceDir SourceRelPath
-	if targetDirRelPath != DotRelPath {
+	currentSourceDir, ok := s.targetDirSourceDir(targetDirRelPath)
+	if !ok {
 		sourceStateEntry := s.root.Get(targetDirRelPath)
 		if sourceStateEntry == nil {
 			return SourceRelPath{}, fmt.Errorf("%s: parent directory not in source state", targetDirRelPath)
 		}
 		currentSourceDir = sourceStateEntry.SourceRelPath()
 	}
-	sourceNames := []string{group}
+	var ungroupedSourceNames []string
 	for _, sourceName := range strings.Split(currentSourceDir.String(), "/") {
 		if sourceName != "" && !isGroupDirName(sourceName) {
-			sourceNames = append(sourceNames, sourceName)
+			ungroupedSourceNames = append(ungroupedSourceNames, sourceName)
 		}
 	}
+	sourceNames := []string{group}
+	if len(ungroupedSourceNames) > 0 && ungroupedSourceNames[0] == homeDirName {
+		sourceNames = []string{homeDirName, group}
+		ungroupedSourceNames = ungroupedSourceNames[1:]
+	}
+	sourceNames = append(sourceNames, ungroupedSourceNames...)
 	groupedSourceDir := NewSourceRelDirPath(path.Join(sourceNames...))
 	if err := MkdirAll(sourceSystem, s.sourceDirAbsPath.Join(groupedSourceDir.RelPath()), fs.ModePerm); err != nil {
 		return SourceRelPath{}, err

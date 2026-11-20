@@ -91,6 +91,8 @@ type runScriptArgs struct {
 	data          []byte
 	interpreter   *Interpreter
 	sourceRelPath SourceRelPath
+	owner         *homeOwner
+	env           []string
 }
 
 type runScriptState struct {
@@ -142,6 +144,11 @@ func prepareScriptCmd(args runScriptArgs, state runScriptState) (_ preparedScrip
 			return preparedScriptCmd{}, err
 		}
 	}
+	if args.owner != nil {
+		if err := f.Chown(args.owner.uid, args.owner.gid); err != nil {
+			return preparedScriptCmd{}, err
+		}
+	}
 	_, err = f.Write(args.data)
 	err = chezmoierrors.Combine(err, f.Close())
 	if err != nil {
@@ -160,6 +167,10 @@ func prepareScriptCmd(args runScriptArgs, state runScriptState) (_ preparedScrip
 	cmd.Env = append(os.Environ(),
 		"CHEZMOI_SOURCE_FILE="+args.sourceRelPath.String(),
 	)
+	cmd.Env = append(cmd.Env, args.env...)
+	if args.owner != nil {
+		args.owner.setCredential(cmd)
+	}
 
 	return preparedScriptCmd{
 		cmd:     cmd,
