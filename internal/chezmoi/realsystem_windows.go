@@ -57,9 +57,16 @@ func (s *RealSystem) Readlink(name AbsPath) (string, error) {
 
 // WriteFile implements System.WriteFile.
 func (s *RealSystem) WriteFile(filename AbsPath, data []byte, perm fs.FileMode) error {
-	// First, try to write the file. If the error is anything except a
-	// permission error, return that error.
+	// First, try to write the file.
 	writeFileErr := s.fileSystem.WriteFile(filename.String(), data, perm)
+
+	// WriteFile only sets perm on a file it creates, see
+	// https://pkg.go.dev/os#WriteFile, so make an existing file read-only.
+	if writeFileErr == nil && perm&0o222 == 0 {
+		return s.fileSystem.Chmod(filename.String(), perm)
+	}
+
+	// If the error is anything except a permission error, return that error.
 	if !errors.Is(writeFileErr, fs.ErrPermission) {
 		return writeFileErr
 	}

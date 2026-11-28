@@ -24,6 +24,14 @@ exec chezmoi apply --force
 cmpmod 666 $HOME/.file
 exec chezmoi verify
 
+# test that chezmoi apply makes a writable file read-only when its contents also changed
+mv $CHEZMOISOURCEDIR/dot_file $CHEZMOISOURCEDIR/readonly_dot_file
+edit $CHEZMOISOURCEDIR/readonly_dot_file
+exec chezmoi apply --force
+cmp $HOME/.file golden/.file-edited-twice
+cmpmod 444 $HOME/.file
+exec chezmoi verify
+
 # test that chezmoi apply removes a read-only file listed in .chezmoiremove
 cmpmod 444 $HOME/.removed
 rm $CHEZMOISOURCEDIR/readonly_dot_removed
@@ -45,6 +53,10 @@ cmp $HOME/.replaced/file golden/.file
 # contents of .file
 -- golden/.file-edited --
 # contents of .file
+# edited
+-- golden/.file-edited-twice --
+# contents of .file
+# edited
 # edited
 -- home/user/.local/share/chezmoi/readonly_dot_file --
 # contents of .file
