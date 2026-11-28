@@ -57,13 +57,39 @@ func (s *RealSystem) Readlink(name AbsPath) (string, error) {
 
 // WriteFile implements System.WriteFile.
 func (s *RealSystem) WriteFile(filename AbsPath, data []byte, perm fs.FileMode) error {
-	if err := s.fileSystem.Chmod(filename.String(), 0o666); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
+	// First, try to write the file. If the error is anything except a
+	// permission error, return that error.
+	writeFileErr := s.fileSystem.WriteFile(filename.String(), data, perm)
+	if !errors.Is(writeFileErr, fs.ErrPermission) {
+		return writeFileErr
 	}
-	if err := s.fileSystem.WriteFile(filename.String(), data, perm); err != nil {
-		return err
+
+	// If we got a permission error, it might be because the file is read only.
+	// Lstat the file to find out. If the lstat fails, return that error.
+	fileInfo, lstatErr := s.fileSystem.Lstat(filename.String())
+	if lstatErr != nil {
+		return lstatErr
 	}
-	return s.fileSystem.Chmod(filename.String(), perm)
+
+	// If the file is not read-only, then return the original error.
+	if fileInfo.Mode().Perm()&0o222 != 0 {
+		return writeFileErr
+	}
+
+	// Chmod the file to enable write permissions.
+	if chmodErr := s.fileSystem.Chmod(filename.String(), 0o600); chmodErr != nil {
+		return chmodErr
+	}
+
+	// Ensure that we try to leave the file with the correct permissions. Ignore
+	// any errors because there's nothing else we can do.
+	defer func() {
+		_ = s.fileSystem.Chmod(filename.String(), perm)
+	}()
+
+	// Write the file and rely on the previous defer to re-establish the
+	// read-only permissions, even if the write fails.
+	return s.fileSystem.WriteFile(filename.String(), data, perm)
 }
 
 // WriteSymlink implements System.WriteSymlink.
