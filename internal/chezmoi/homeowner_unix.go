@@ -15,6 +15,16 @@ import (
 	"chezmoi.io/chezmoi/v2/internal/chezmoierrors"
 )
 
+// A homeOwner is the user who owns the home directory. When root applies a
+// destination directory that contains the home directory, a HomeOwnerSystem
+// gives them what it writes there and runs the scripts there as them.
+type homeOwner struct {
+	uid    int
+	gid    int
+	groups []uint32
+	env    []string
+}
+
 // A HomeOwnerSystem is the RealSystem of root applying a destination
 // directory that contains the home directory of another user, for a source
 // directory with a ~ directory. It gives that user what it writes in their home
@@ -22,6 +32,7 @@ import (
 // outside it.
 type HomeOwnerSystem struct {
 	*RealSystem
+
 	homeDirAbsPath AbsPath
 	owner          homeOwner
 	rootEnv        []string
@@ -35,7 +46,11 @@ type HomeOwnerSystem struct {
 // destDirAbsPath and it contains homeDirAbsPath, which another user owns, and
 // realSystem otherwise. hasHomeDirFunc returns whether the source directory
 // has a ~ directory, and is called on the first write.
-func NewHomeOwnerSystem(realSystem *RealSystem, destDirAbsPath, homeDirAbsPath AbsPath, hasHomeDirFunc func() (bool, error)) (System, error) {
+func NewHomeOwnerSystem(
+	realSystem *RealSystem,
+	destDirAbsPath, homeDirAbsPath AbsPath,
+	hasHomeDirFunc func() (bool, error),
+) (System, error) {
 	if os.Geteuid() != 0 || destDirAbsPath == homeDirAbsPath || !homeDirAbsPath.HasDirPrefix(destDirAbsPath) {
 		return realSystem, nil
 	}
@@ -95,6 +110,10 @@ func lookupHomeOwner(uid uint32, homeDirAbsPath AbsPath) (homeOwner, error) {
 	}, nil
 }
 
+func (o *homeOwner) chownFile(f *os.File) error {
+	return f.Chown(o.uid, o.gid)
+}
+
 func (o *homeOwner) setCredential(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Credential: &syscall.Credential{
@@ -111,22 +130,6 @@ func (s *HomeOwnerSystem) Mkdir(name AbsPath, perm fs.FileMode) error {
 		return err
 	}
 	return s.chown(name)
-}
-
-// WriteFile implements System.WriteFile.
-func (s *HomeOwnerSystem) WriteFile(filename AbsPath, data []byte, perm fs.FileMode) error {
-	if err := s.RealSystem.WriteFile(filename, data, perm); err != nil {
-		return err
-	}
-	return s.chown(filename)
-}
-
-// WriteSymlink implements System.WriteSymlink.
-func (s *HomeOwnerSystem) WriteSymlink(oldName string, newName AbsPath) error {
-	if err := s.RealSystem.WriteSymlink(oldName, newName); err != nil {
-		return err
-	}
-	return s.chown(newName)
 }
 
 // RunScript implements System.RunScript.
@@ -168,6 +171,22 @@ func (s *HomeOwnerSystem) RunScript(scriptName RelPath, dir AbsPath, data []byte
 	preparedScript.cmd.Stderr = os.Stderr
 
 	return s.RunCmd(preparedScript.cmd)
+}
+
+// WriteFile implements System.WriteFile.
+func (s *HomeOwnerSystem) WriteFile(filename AbsPath, data []byte, perm fs.FileMode) error {
+	if err := s.RealSystem.WriteFile(filename, data, perm); err != nil {
+		return err
+	}
+	return s.chown(filename)
+}
+
+// WriteSymlink implements System.WriteSymlink.
+func (s *HomeOwnerSystem) WriteSymlink(oldName string, newName AbsPath) error {
+	if err := s.RealSystem.WriteSymlink(oldName, newName); err != nil {
+		return err
+	}
+	return s.chown(newName)
 }
 
 // chown gives the home directory's owner name, if it is in the home directory.

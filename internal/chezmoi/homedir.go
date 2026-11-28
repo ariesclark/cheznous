@@ -67,7 +67,11 @@ func HomeRelPath(destDirAbsPath, homeDirAbsPath AbsPath) (RelPath, error) {
 	}
 	homeRelPath, err := homeDirAbsPath.TrimDirPrefix(destDirAbsPath)
 	if err != nil {
-		return EmptyRelPath, fmt.Errorf("%s: the destination directory must be the home directory %s or contain it, because the source directory has a ~ directory", destDirAbsPath, homeDirAbsPath)
+		return EmptyRelPath, fmt.Errorf(
+			"%s: the destination directory must be the home directory %s or contain it, because the source directory has a ~ directory",
+			destDirAbsPath,
+			homeDirAbsPath,
+		)
 	}
 	return homeRelPath, nil
 }
@@ -93,7 +97,10 @@ func (s *SourceState) homeDirActionOf(sourceRelPath SourceRelPath) (homeDirActio
 		case isDir && sourceName == homeDirName:
 			switch {
 			case i > 0:
-				return 0, fmt.Errorf("%s: the ~ directory must be at the top of the source directory", path.Join(sourceNames[:i+1]...))
+				return 0, fmt.Errorf(
+					"%s: the ~ directory must be at the top of the source directory",
+					path.Join(sourceNames[:i+1]...),
+				)
 			case i == last:
 				return homeDirActionEnter, nil
 			default:
@@ -106,37 +113,6 @@ func (s *SourceState) homeDirActionOf(sourceRelPath SourceRelPath) (homeDirActio
 		}
 	}
 	return homeDirActionRead, nil
-}
-
-// isSharedName returns whether name is the name of an entry outside the ~
-// directory that is read even when the destination is the home directory.
-func isSharedName(name string) bool {
-	return name == dataName || isPrefixDotFormat(name, dataName) || name == TemplatesDirName || name == VersionName
-}
-
-// isTargetRootHomeDir returns whether sourceNames[i] is a ~ directory with only
-// group directories above it.
-func isTargetRootHomeDir(sourceNames []string, i int) bool {
-	if sourceNames[i] != homeDirName {
-		return false
-	}
-	for _, sourceName := range sourceNames[:i] {
-		if !isGroupDirName(sourceName) {
-			return false
-		}
-	}
-	return true
-}
-
-// isInHomeDir returns whether sourceRelPath is in the ~ directory.
-func isInHomeDir(sourceRelPath SourceRelPath) bool {
-	sourceNames := strings.Split(sourceRelPath.String(), "/")
-	for i := range sourceNames {
-		if isTargetRootHomeDir(sourceNames, i) {
-			return true
-		}
-	}
-	return false
 }
 
 // TargetRelPathIn returns the relative path of the target of sourceRelPath in
@@ -206,4 +182,35 @@ func (s *SourceState) targetDirSourceDir(targetDirRelPath RelPath) (SourceRelPat
 	default:
 		return SourceRelPath{}, false
 	}
+}
+
+// isSharedName returns whether name is the name of an entry outside the ~
+// directory that is read even when the destination is the home directory.
+func isSharedName(name string) bool {
+	return name == dataName || isPrefixDotFormat(name, dataName) || name == TemplatesDirName || name == VersionName
+}
+
+// isTargetRootHomeDir returns whether sourceNames[i] is a ~ directory with only
+// group directories above it.
+func isTargetRootHomeDir(sourceNames []string, i int) bool {
+	if sourceNames[i] != homeDirName {
+		return false
+	}
+	for _, sourceName := range sourceNames[:i] {
+		if !isGroupDirName(sourceName) {
+			return false
+		}
+	}
+	return true
+}
+
+// isInHomeDir returns whether sourceRelPath is in the ~ directory.
+func isInHomeDir(sourceRelPath SourceRelPath) bool {
+	sourceNames := strings.Split(sourceRelPath.String(), "/")
+	for i := range sourceNames {
+		if isTargetRootHomeDir(sourceNames, i) {
+			return true
+		}
+	}
+	return false
 }

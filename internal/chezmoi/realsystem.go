@@ -145,7 +145,7 @@ func prepareScriptCmd(args runScriptArgs, state runScriptState) (_ preparedScrip
 		}
 	}
 	if args.owner != nil {
-		if err := f.Chown(args.owner.uid, args.owner.gid); err != nil {
+		if err := args.owner.chownFile(f); err != nil {
 			return preparedScriptCmd{}, err
 		}
 	}

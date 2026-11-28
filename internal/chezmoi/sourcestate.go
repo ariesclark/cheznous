@@ -3158,7 +3158,8 @@ func canonicalSourceStateEntry(sourceStateEntries []SourceStateEntry) (SourceSta
 	for i, sourceStateEntry := range sourceStateEntries {
 		switch sourceStateEntry := sourceStateEntry.(type) {
 		case *SourceStateDir:
-			if firstSourceStateDir == nil || isInGroupDir(firstSourceStateDir.sourceRelPath) && !isInGroupDir(sourceStateEntry.sourceRelPath) {
+			if firstSourceStateDir == nil ||
+				isInGroupDir(firstSourceStateDir.sourceRelPath) && !isInGroupDir(sourceStateEntry.sourceRelPath) {
 				firstSourceStateDir = sourceStateEntry
 			}
 			sourceStateDirs[i] = sourceStateEntry

@@ -122,13 +122,6 @@ func TestCommandNameFromExecutable(t *testing.T) {
 	}
 }
 
-func executableFileName(commandName string) string {
-	if runtime.GOOS == "windows" {
-		return commandName + ".exe"
-	}
-	return commandName
-}
-
 func TestReplaceExecutablesReplacesTheOtherCommandNameToo(t *testing.T) {
 	cheznousPath := "/home/user/.local/bin/" + executableFileName("cheznous")
 	chezmoiPath := "/home/user/.local/bin/" + executableFileName("chezmoi")
@@ -186,4 +179,11 @@ func TestCompletionRegistersTheCommandName(t *testing.T) {
 		assert.NoError(t, config.execute([]string{"completion", "bash"}))
 		assert.Contains(t, stdout.String(), "complete -o default -F __start_cheznous cheznous\n")
 	})
+}
+
+func executableFileName(commandName string) string {
+	if runtime.GOOS == "windows" {
+		return commandName + ".exe"
+	}
+	return commandName
 }

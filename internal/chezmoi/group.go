@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
+	"slices"
 	"strings"
 )
 
@@ -30,12 +31,7 @@ func sourceDirEntryOrderOf(dirEntry fs.DirEntry) int {
 
 // isInGroupDir returns whether sourceRelPath is inside a group directory.
 func isInGroupDir(sourceRelPath SourceRelPath) bool {
-	for _, sourceName := range strings.Split(sourceRelPath.String(), "/") {
-		if isGroupDirName(sourceName) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(strings.Split(sourceRelPath.String(), "/"), isGroupDirName)
 }
 
 // groupSourceDir returns the source directory of the entry in a group that
@@ -80,16 +76,17 @@ func (s *SourceState) groupedSourceDir(sourceSystem System, group string, target
 		currentSourceDir = sourceStateEntry.SourceRelPath()
 	}
 	var ungroupedSourceNames []string
-	for _, sourceName := range strings.Split(currentSourceDir.String(), "/") {
+	for sourceName := range strings.SplitSeq(currentSourceDir.String(), "/") {
 		if sourceName != "" && !isGroupDirName(sourceName) {
 			ungroupedSourceNames = append(ungroupedSourceNames, sourceName)
 		}
 	}
-	sourceNames := []string{group}
+	sourceNames := make([]string, 0, 1+len(ungroupedSourceNames))
 	if len(ungroupedSourceNames) > 0 && ungroupedSourceNames[0] == homeDirName {
-		sourceNames = []string{homeDirName, group}
+		sourceNames = append(sourceNames, homeDirName)
 		ungroupedSourceNames = ungroupedSourceNames[1:]
 	}
+	sourceNames = append(sourceNames, group)
 	sourceNames = append(sourceNames, ungroupedSourceNames...)
 	groupedSourceDir := NewSourceRelDirPath(path.Join(sourceNames...))
 	if err := MkdirAll(sourceSystem, s.sourceDirAbsPath.Join(groupedSourceDir.RelPath()), fs.ModePerm); err != nil {
@@ -99,8 +96,8 @@ func (s *SourceState) groupedSourceDir(sourceSystem System, group string, target
 }
 
 // readGroupDir returns nil if the condition of the group directory at
-// sourceRelPath is true, so that its entries are read, and fs.SkipDir if it is
-// false.
+// sourceRelPath is true, so that its entries are read, and [fs.SkipDir] if it
+// is false.
 func (s *SourceState) readGroupDir(sourceRelPath SourceRelPath, name string) error {
 	result, err := s.ExecuteTemplateData(ExecuteTemplateDataOptions{
 		NameRelPath: sourceRelPath.RelPath(),

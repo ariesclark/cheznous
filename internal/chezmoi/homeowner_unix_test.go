@@ -30,7 +30,12 @@ func TestHomeOwnerSystem(t *testing.T) {
 	assert.NoError(t, os.Chown(homeDir, nobody, nobody))
 	assert.NoError(t, os.MkdirAll(destDir+"/etc", 0o755))
 
-	system, err := NewHomeOwnerSystem(NewRealSystem(vfs.OSFS), NewAbsPath(destDir), NewAbsPath(homeDir), func() (bool, error) { return true, nil })
+	system, err := NewHomeOwnerSystem(
+		NewRealSystem(vfs.OSFS),
+		NewAbsPath(destDir),
+		NewAbsPath(homeDir),
+		func() (bool, error) { return true, nil },
+	)
 	assert.NoError(t, err)
 	_, ok := system.(*HomeOwnerSystem)
 	assert.True(t, ok)
@@ -74,7 +79,12 @@ func TestHomeOwnerSystemWithoutHomeDir(t *testing.T) {
 	assert.NoError(t, os.MkdirAll(homeDir, 0o755))
 	assert.NoError(t, os.Chown(homeDir, 65534, 65534))
 
-	system, err := NewHomeOwnerSystem(NewRealSystem(vfs.OSFS), NewAbsPath(destDir), NewAbsPath(homeDir), func() (bool, error) { return false, nil })
+	system, err := NewHomeOwnerSystem(
+		NewRealSystem(vfs.OSFS),
+		NewAbsPath(destDir),
+		NewAbsPath(homeDir),
+		func() (bool, error) { return false, nil },
+	)
 	assert.NoError(t, err)
 	assert.NoError(t, system.WriteFile(NewAbsPath(homeDir+"/file"), []byte("home\n"), 0o644))
 	info, err := os.Lstat(homeDir + "/file")
